@@ -1,0 +1,92 @@
+// Import serial library for communication with Arduino 
+import processing.serial.*; 
+Serial myPort;  // Serial object for communication 
+int red = 0, green = 0, blue = 0;  // Variables to store RGB values 
+String colorName = "NONE";         
+String lastColor = "";             
+long lastSpeakTime = 0;            
+// Variable to store detected color name 
+// Stores previous color to avoid repetition 
+// Variable to control delay between voice outputs 
+void setup() { 
+// Create display window 
+size(500, 400); 
+// Print available COM ports (for selection) 
+println("Available Ports:"); 
+printArray(Serial.list()); 
+// Initialize serial communication with Arduino 
+myPort = new Serial(this, Serial.list()[2], 9600);  //[2] because COM5 is used. 
+// Clear old data and wait for complete line 
+myPort.clear(); 
+myPort.bufferUntil('\n'); 
+} 
+void draw() { 
+// Set background color based on detected RGB 
+background(red, green, blue); 
+// Draw top bar for text visibility 
+fill(0, 150); 
+noStroke(); 
+rect(0, 0, width, 90); 
+// Display title 
+fill(255); 
+textAlign(CENTER, CENTER); 
+textSize(26); 
+text("Detected Color", width/2, 30); 
+// Display detected color name 
+textSize(30); 
+text(colorName, width/2, 65); 
+// Display RGB values 
+fill(0); 
+textSize(18); 
+text("R: " + red + " G: " + green + " B: " + blue, width/2, height - 20); 
+} 
+void serialEvent(Serial myPort) { 
+// Read incoming serial data 
+String data = myPort.readStringUntil('\n'); 
+if (data == null) return;   // Ignore null data 
+// Clean and validate data 
+data = trim(data); 
+if (data.length() == 0) return; 
+// Split data into values (R,G,B,Color) 
+String[] values = split(data, ','); 
+// Ensure correct format 
+if (values.length != 4) return; 
+try { 
+// Convert received values into integers 
+int r = Integer.parseInt(values[0].trim()); 
+int g = Integer.parseInt(values[1].trim()); 
+int b = Integer.parseInt(values[2].trim()); 
+String cname = values[3].trim(); 
+// Validate RGB range 
+if (r < 0 | r > 255 | g < 0 | g > 255 | b < 0 | b > 255) return; 
+// Update values 
+red = r; 
+green = g; 
+blue = b; 
+colorName = cname; 
+// Speak only if color changes and 1 second delay passed 
+if (!colorName.equals(lastColor) && millis() - lastSpeakTime > 1000) { 
+println(colorName);   // Print detected color 
+speakColor(colorName);  // Call voice function 
+lastColor = colorName;  // Update previous color 
+lastSpeakTime = millis();  // Update time 
+} 
+} 
+catch (Exception e) { 
+// Handle invalid data 
+println("Invalid data received"); 
+} 
+} 
+// TEXT TO SPEECH FUNCTION 
+void speakColor(String text) { 
+try { 
+// PowerShell command for voice output 
+String command = "powershell -Command \"Add-Type -AssemblyName System.Speech; " + 
+"$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer; " + 
+"$speak.Speak('" + text + "');\""; 
+// Execute command 
+Runtime.getRuntime().exec(command); 
+} catch (Exception e) { 
+println("Speech Error");  // Handle error 
+} 
+}
